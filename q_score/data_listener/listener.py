@@ -77,7 +77,7 @@ def call_analysis_script(nifti_file_path):
     q_score_path = str(os.environ.get("QSCORE_PATH", '/app/qscore'))
     path_to_script = f'{q_score_path}/run_analysis.py'
 
-    command = ["python3", path_to_script, nifti_file_path]
+    command = ["python3", path_to_script, "--path", nifti_file_path]
 
     # Run command
     try:

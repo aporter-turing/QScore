@@ -1,12 +1,14 @@
-import math
+#import math
 import logging
 import numpy as np
 import nibabel as nib
 from pathlib import Path
 from nipype.interfaces import fsl
-from scipy.spatial import distance
-from concurrent.futures import ThreadPoolExecutor
-from permutations.utils import get_series_description, load_scaling_params, get_scaled_score
+import json 
+# from scipy.spatial import distance
+# from concurrent.futures import ThreadPoolExecutor
+#from permutations.utils import get_series_description, load_scaling_params, get_scaled_score
+#from nipype.interfaces.ants import ResampleImageBySpacing
 
 class Permutations:
     def __init__(self, base_folder: Path, output_data_path: Path, original_nifti: Path):
@@ -57,23 +59,25 @@ class Permutations:
         self.num_frames = truncated_image.shape[3]
 
         # Get voxel size
-        voxel_size = original_image.header.get_zooms()[0]
-        truncated_file_name = "truncated.nii.gz" if voxel_size == 4.0 else "truncated_4mm.nii.gz"
+        # voxel_size = original_image.header.get_zooms()[0]
+        # truncated_file_name = "truncated.nii.gz" if voxel_size == 4.0 else "truncated_4mm.nii.gz"
 
         # Rescale to 4mm if needed
-        if voxel_size != 4.0:
-            logging.info(f"Original image was of voxel size {original_image.header.get_zooms()}. Rescaling it to 4mm voxels.")
-            flirt = fsl.FLIRT()
-            flirt.inputs.in_file = self.output_data_path / "truncated.nii.gz"
-            flirt.inputs.reference = f"{self.base_folder}/design/standard/MNI152_T1_4mm_brain.nii.gz"
-            flirt.inputs.out_file = self.output_data_path / truncated_file_name
-            flirt.inputs.apply_isoxfm = 4
-            flirt.run()
+        # if voxel_size != 4.0:
+        #     logging.info(f"Original image was of voxel size {original_image.header.get_zooms()}. Rescaling it to 4mm voxels.")
+        #     flirt = fsl.FLIRT()
+        #     flirt.inputs.in_file = self.output_data_path / "truncated.nii.gz"
+        #     flirt.inputs.reference = f"{self.base_folder}/design/standard/MNI152_T1_4mm_brain.nii.gz"
+        #     flirt.inputs.out_file = self.output_data_path / truncated_file_name
+        #     flirt.inputs.apply_isoxfm = 4
+        #     flirt.run()
+
+
 
         # Run brain extraction on truncated data
         bet_image_file_path = self.output_data_path / "truncated_bet.nii.gz"
         bet = fsl.BET()
-        bet.inputs.in_file = self.output_data_path / truncated_file_name
+        bet.inputs.in_file = self.output_data_path / "truncated.nii.gz"
         bet.inputs.out_file = bet_image_file_path
         bet.inputs.functional = True
         bet.run()
@@ -81,7 +85,7 @@ class Permutations:
         # Run mcflirt on truncated data
         mcflirt_image_file_path = self.output_data_path / "truncated_bet_mcf.nii.gz"
         mcflirt = fsl.MCFLIRT()
-        mcflirt.inputs.in_file = bet_image_file_path
+        mcflirt.inputs.in_file = self.output_data_path / "truncated.nii.gz"
         mcflirt.inputs.out_file = mcflirt_image_file_path
         mcflirt.run()
 
@@ -271,3 +275,44 @@ class Permutations:
         scaling_params = load_scaling_params(path_to_params=Path(self.base_folder / f"design/scales/{self.task_type}_scaling_params.json"))
         q_score = get_scaled_score(unscaled_q_score, scaling_params)
         return q_score
+    
+def get_series_description(nifti_path: Path):
+    """
+    nifti_path: Path to nifti file
+    
+    Returns: task_name: str
+    """
+
+    nifti_file_name = nifti_path.name
+    series_description = nifti_file_name.split("_")
+    task_name = series_description[1].lower()
+    # Make sure that task name is either objnam or motor
+    if task_name not in ["objnam", "motor"]:
+        logging.error("Task name not objnam or motor, defaulting to objnam")
+        return "error"
+
+    return task_name
+
+def load_scaling_params(path_to_params: Path):
+    """
+    path_to_params: Path to json file that contains scaling parameters
+    
+    Returns: params dict: A dictionary with keys 'data_min', 'data_max', 'scaled_mean', and 'scaled_std', 
+        e.g., {"data_min": 2.8, "data_max": 11.2, "scaled_mean": 56.39, "scaled_std": 39.03}.
+    """
+
+    with open(path_to_params, 'r') as f:
+        params = json.load(f)
+    return params
+
+def get_scaled_score(unscaled_score, params):
+    """
+    unscaled_score: QScore integer value without any scale applied to it
+    params: dictionary containing relevant parameters for scale for that task
+
+    Returns: scaled_score: integer representing QScore, with range of 1-100
+    """
+    scaled_score = ((unscaled_score - params['data_min']) / (params['data_max'] - params['data_min'])) * 100
+    scaled_score = round(np.clip(scaled_score, 1, 100))
+    return scaled_score
+
