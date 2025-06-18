@@ -1,31 +1,11 @@
-FROM ubuntu:22.04
+FROM ubuntu:22.04 AS base
 
-# Install dependencies for ANTs
-RUN apt-get update && \
-    apt-get install -y \
-    cmake \
-    git \
-    gcc \
-    g++ \
-    zlib1g-dev \
-    libbz2-dev \
-    libexpat1-dev \
-    libfftw3-dev \
-    libpng-dev \
-    libtiff-dev \
-    libgomp1 \
-    libatlas-base-dev \
-    libeigen3-dev \
-    libdcmtk-dev
+ENV DEBIAN_FRONTEND=noninteractive
 
+FROM base AS final
 # Install precompiled ANTs binaries 
-RUN wget https://github.com/ANTsX/ANTs/releases/download/v2.5.0/ants-2.5.0-linux.tar.gz && \
-    tar -xvzf ants-2.5.0-linux.tar.gz -C /opt && \
-    rm ants-2.5.0-linux.tar.gz
-
-# Add ANTs to PATH
-ENV ANTSPATH=/opt/ants
-ENV PATH=${ANTSPATH}/bin:${PATH}
+COPY --from=829077602501.dkr.ecr.us-east-1.amazonaws.com/research/dependency/ants:2.5.0 /opt/ants/bin /opt/ants/bin
+ENV PATH="/opt/ants/bin:$PATH"
 
 RUN apt-get update && \
     apt-get install -y wget file nano dcm2niix python3 python3-pip strace
@@ -35,8 +15,6 @@ RUN apt-get install -y libgl1-mesa-dev && \
     python3 fslinstaller.py -d /opt/fsl
 
 RUN pip install nipype nibabel scipy numpy watchdog pydicom
-
-
 # FSL env variables
 ENV FSLDIR=/opt/fsl
 ENV FSL_DIR=/opt/fsl

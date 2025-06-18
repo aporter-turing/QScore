@@ -20,7 +20,8 @@ class QScore:
         """        
 
         self.base_folder = base_folder
-        self.original_nifti = original_nifti
+        # ensure nifti is in 4mm space
+        resample(original_nifti, output_path, output_path / 'fake_anat.nii.gz', output_path / 'func_4mm.nii.gz')
         self.task_type = get_series_description(original_nifti)
         if self.task_type == "error":
             raise Exception("Error reading task type from NIFTI file name")
@@ -34,7 +35,7 @@ class QScore:
         if not self.analysis_path.exists():
             self.analysis_path.mkdir(parents=True, exist_ok=True)
 
-        original_image = Nifti1Image.load(self.original_nifti)
+        original_image = Nifti1Image.load(output_path / 'func_4mm.nii.gz')
         self.tr_time = original_image.header['pixdim'][4]
 
         # Truncate the original data by 4 frames
