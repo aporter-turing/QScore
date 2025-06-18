@@ -85,7 +85,7 @@ class Permutations:
         # Run mcflirt on truncated data
         mcflirt_image_file_path = self.output_data_path / "truncated_bet_mcf.nii.gz"
         mcflirt = fsl.MCFLIRT()
-        mcflirt.inputs.in_file = self.output_data_path / "truncated.nii.gz"
+        mcflirt.inputs.in_file = bet_image_file_path
         mcflirt.inputs.out_file = mcflirt_image_file_path
         mcflirt.run()
 
